@@ -20,12 +20,12 @@ const fail = (error, status = 400) => json({ error }, status);
 const hash = (password, salt) => scryptSync(password, salt, 32).toString("hex");
 const checkPassword = (u, password) =>
   typeof password === "string" && timingSafeEqual(Buffer.from(hash(password, u.salt), "hex"), Buffer.from(u.hash, "hex"));
-const setPassword = (u, password) => { u.salt = randomBytes(16).toString("hex"); u.hash = hash(password, u.salt); u.tv = (u.tv || 0) + 1; };
+const setPassword = (u, password) => { u.salt = randomBytes(16).toString("hex"); u.hash = hash(password, u.salt); u.tv = (u.tv || 0) + 1; delete u.resetRequested; };
 const cleanName = (s) => (typeof s === "string" ? s.trim().slice(0, 40) : "");
 const cleanUsername = (s) => (typeof s === "string" ? s.trim().toLowerCase() : "");
 const validUsername = (s) => /^[a-z0-9._-]{2,30}$/.test(s);
 const validPassword = (s) => typeof s === "string" && s.length >= 6 && s.length <= 200;
-const publicUser = (u) => ({ id: u.id, name: u.name, username: u.username, role: u.role, active: u.active !== false });
+const publicUser = (u) => ({ id: u.id, name: u.name, username: u.username, role: u.role, active: u.active !== false, resetRequested: u.resetRequested || null });
 
 const isTxn = (b) =>
   b && typeof b === "object" && /^\d{4}-\d{2}-\d{2}$/.test(b.date) && typeof b.cat === "string" &&
@@ -85,6 +85,27 @@ export default async (req) => {
       return fail("Username or password is wrong.", 401);
     }
     return json({ token: await issueToken(store, u), me: publicUser(u) });
+  }
+
+  // Forgot password, route 1: anyone who knows BUDGET_PASSCODE can set a new password for an account.
+  if (a === "recover") {
+    const code = process.env.BUDGET_PASSCODE;
+    const u = users.find((x) => x.username === cleanUsername(body.username) && x.active !== false);
+    if (!code || body.code !== code || !u) {
+      await new Promise((r) => setTimeout(r, 600));
+      return fail("That username or setup passcode is wrong.", 401);
+    }
+    if (!validPassword(body.password)) return fail("Use a password of at least 6 characters.");
+    setPassword(u, body.password); await saveUsers();
+    return json({ token: await issueToken(store, u), me: publicUser(u) });
+  }
+
+  // Forgot password, route 2: flag the account so admins see the request on the Family tab.
+  // The reply is the same whether or not the username exists.
+  if (a === "requestReset") {
+    const u = users.find((x) => x.username === cleanUsername(body.username) && x.active !== false);
+    if (u && !u.resetRequested) { u.resetRequested = Date.now(); await saveUsers(); }
+    return json({ ok: true });
   }
 
   // --- signed in ---
@@ -151,6 +172,7 @@ export default async (req) => {
     if (body.password !== undefined) { if (!validPassword(body.password)) return fail("Use a password of at least 6 characters."); setPassword(u, body.password); }
     if (body.active === false) { u.active = false; u.tv = (u.tv || 0) + 1; }
     if (body.active === true) u.active = true;
+    if (body.dismissReset) delete u.resetRequested;
     await saveUsers();
     return everything();
   }
