@@ -105,6 +105,9 @@ h2{font-size:1.15rem}
 .entry .d{font-size:.82rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .entry .a{font-weight:700;text-align:right;white-space:nowrap}
 .entry .by{color:var(--ink);font-weight:600}
+.fam .entry{grid-template-columns:minmax(0,1fr)}
+.fam .entry>div:last-child{justify-content:flex-start!important;margin-left:-6px}
+.fam .entry>div:last-child:empty{display:none}
 .entry .orig{display:block;font-size:.75rem;font-weight:500;color:var(--muted)}
 .entry .edit{border:0;background:transparent;color:var(--muted);cursor:pointer;padding:6px;border-radius:6px}
 .entry .edit:hover{background:var(--sunk);color:var(--ink)}
@@ -442,16 +445,16 @@ function vAuth(){
   const back='<button type="button" class="linkish" data-auth="signin">Back to sign in</button>';
   const prior=esc(S.authUser||'');
   if(!setup&&S.authView==='forgot')return card('<h2>Forgot your password?</h2>',`
-    <p class="muted small" style="margin:0">Enter your username and we’ll ask your family admin to set a new password for you. They’ll see the request on their Family tab and tell you the new password.</p>
+    <p class="muted small" style="margin:0">Enter your username and we’ll ask the head of household to set a new password for you. They’ll see the request on their Family tab and tell you the new password.</p>
     <form id="forgot-form" class="grid" style="gap:12px">
       <div class="field"><label for="fg-user">Username</label><input id="fg-user" autocomplete="username" autocapitalize="none" spellcheck="false" value="${prior}" required></div>
       <p class="err" id="fg-err" role="alert" style="margin:0"></p>
-      <button class="btn primary">Ask admin to reset it</button>
+      <button class="btn primary">Ask for a reset</button>
     </form>
-    <p class="muted small" style="margin:0">Are you the admin? <button type="button" class="linkish" data-auth="recover">Reset with the setup passcode</button></p>
+    <p class="muted small" style="margin:0">Are you the head of household? <button type="button" class="linkish" data-auth="recover">Reset with the setup passcode</button></p>
     ${back}`);
   if(!setup&&S.authView==='requested')return card('<h2>Request sent</h2>',`
-    <p style="margin:0">If <b>@${prior}</b> is an account here, your admin will see your request on their Family tab. Once they’ve set a new password, sign in with it.</p>${back}`);
+    <p style="margin:0">If <b>@${prior}</b> is an account here, the head of household will see your request on their Family tab. Once they’ve set a new password, sign in with it.</p>${back}`);
   if(!setup&&S.authView==='recover')return card('<h2>Reset with the setup passcode</h2>',`
     <p class="muted small" style="margin:0">Use the <b>BUDGET_PASSCODE</b> from your Netlify settings to choose a new password for any account, including your own.</p>
     <form id="recover-form" class="grid" style="gap:12px">
@@ -463,28 +466,30 @@ function vAuth(){
     </form>${back}`);
   return `<section class="card" style="max-width:440px;width:100%;margin:24px auto 0">
   <h2>${setup?'Set up your family planner':'Sign in'}</h2>
-  <p class="muted small" style="margin:0">${setup?'Create the first account. You’ll be the admin and can add family members after this.':'Use the username and password your family admin gave you.'}</p>
+  <p class="muted small" style="margin:0">${setup?'Create the first account. You’ll be the head of household: you can add family members and see and manage everyone’s records.':'Use the username and password the head of household gave you.'}</p>
   <form id="auth-form" class="grid" style="gap:12px">
     ${setup?`<div class="field"><label for="au-name">Your name</label><input id="au-name" autocomplete="name" placeholder="e.g. Haider" required></div>`:''}
     <div class="field"><label for="au-user">Username</label><input id="au-user" autocomplete="username" autocapitalize="none" spellcheck="false" value="${prior}" required></div>
     <div class="field"><label for="au-pass">Password</label><input id="au-pass" type="password" autocomplete="${setup?'new-password':'current-password'}" required></div>
     ${setup?`<div class="field"><label for="au-code">Setup passcode</label><input id="au-code" type="password" autocomplete="off" placeholder="The BUDGET_PASSCODE you set in Netlify" required></div>`:''}
     <p class="err" id="au-err" role="alert" style="margin:0">${esc(S.authMsg||'')}</p>
-    <button class="btn primary" id="au-go">${setup?'Create admin account':'Sign in'}</button>
+    <button class="btn primary" id="au-go">${setup?'Create head of household account':'Sign in'}</button>
     ${setup?'':'<button type="button" class="linkish" data-auth="forgot">Forgot password?</button>'}
   </form></section>`;
 }
 function vFamily(){
-  const admin=isAdmin(), cnt={};
-  for(const t of S.txns)if(t.byId)cnt[t.byId]=(cnt[t.byId]||0)+1;
+  const admin=isAdmin(), cnt={}, spent={}, cm=catMap();
+  const d=new Date(), mFrom=ymd(d.getFullYear(),d.getMonth(),1), mTo=ymd(d.getFullYear(),d.getMonth(),lastDay(d.getFullYear(),d.getMonth()));
+  for(const t of S.txns){const u=S.users.find(x=>x.id===t.byId)||(!t.byId&&S.users.find(x=>x.name===t.by));if(!u)continue;
+    cnt[u.id]=(cnt[u.id]||0)+1; if(typeOf(t,cm)==='expense'&&t.date>=mFrom&&t.date<=mTo)spent[u.id]=(spent[u.id]||0)+val(t)}
   const rows=S.users.slice().sort((a,b)=>(b.active-a.active)||a.name.localeCompare(b.name)).map(u=>`
-    <div class="entry"><div style="min-width:0"><div class="t">${esc(u.name)} ${u.id===S.me.id?'<span class="chip">you</span>':''} ${u.role==='admin'?'<span class="chip loan">admin</span>':''} ${u.active?'':'<span class="chip over">removed</span>'} ${admin&&u.active&&u.resetRequested?'<span class="chip over">wants a reset</span>':''}</div>
-      <div class="d">@${esc(u.username)} · ${cnt[u.id]||0} ${cnt[u.id]===1?'entry':'entries'}</div>
+    <div class="entry"><div style="min-width:0"><div class="t">${esc(u.name)} ${u.id===S.me.id?'<span class="chip">you</span>':''} ${u.role==='admin'?'<span class="chip loan">head of household</span>':''} ${u.active?'':'<span class="chip over">removed</span>'} ${admin&&u.active&&u.resetRequested?'<span class="chip over">wants a reset</span>':''}</div>
+      <div class="d">@${esc(u.username)} · ${cnt[u.id]||0} ${cnt[u.id]===1?'entry':'entries'}${spent[u.id]?` · ${money(spent[u.id])} spent in ${MON[d.getMonth()]}`:''}</div>
       ${S.resetFor===u.id?`<form class="addrow" id="reset-form" data-uid="${esc(u.id)}" style="margin-top:8px"><input id="reset-pass" type="password" autocomplete="new-password" placeholder="New password for ${esc(u.name)}" aria-label="New password"><button class="btn primary">Save</button><button type="button" class="btn ghost" data-uact="cancel">Cancel</button></form>`:''}</div>
       <div></div>
-      <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end">${admin&&u.id!==S.me.id?`
+      <div style="display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end">${cnt[u.id]?`<button class="btn small" data-uact="records" data-uid="${esc(u.id)}">View records</button>`:''}${admin&&u.id!==S.me.id?`
         ${u.active?`<button class="btn ghost small" data-uact="reset" data-uid="${esc(u.id)}">Reset password</button>
-        <button class="btn ghost small" data-uact="${u.role==='admin'?'member':'admin'}" data-uid="${esc(u.id)}">${u.role==='admin'?'Make member':'Make admin'}</button>
+        <button class="btn ghost small" data-uact="${u.role==='admin'?'member':'admin'}" data-uid="${esc(u.id)}">${u.role==='admin'?'Make family member':'Make head of household'}</button>
         <button class="btn ghost small" data-uact="remove" data-uid="${esc(u.id)}">${S.removeArm===u.id?'Tap to confirm':'Remove'}</button>`
         :`<button class="btn ghost small" data-uact="restore" data-uid="${esc(u.id)}">Restore</button>`}`:''}</div></div>`).join('');
   const asks=admin?S.users.filter(u=>u.active&&u.resetRequested&&u.id!==S.me.id):[];
@@ -492,15 +497,15 @@ function vFamily(){
     ${asks.map(u=>`<div class="entry"><div style="min-width:0"><div class="t">${esc(u.name)} forgot their password</div><div class="d">Asked ${fmtDate(new Date(u.resetRequested).toISOString().slice(0,10))}. Set a new one, then tell them.</div></div><div></div>
       <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end"><button class="btn primary small" data-uact="reset" data-uid="${esc(u.id)}">Set new password</button><button class="btn ghost small" data-uact="dismiss" data-uid="${esc(u.id)}">Dismiss</button></div></div>`).join('')}</section>`:'';
   return `${askCard}<div class="two"><div class="stack"><section class="card"><div class="card-h"><h2>Family members</h2><span class="muted small">${S.users.filter(u=>u.active).length} active</span></div>
-    <p class="muted small" style="margin:0">Everyone signs in with their own username. Each entry records who added it. ${admin?'Members can add entries and change their own. Admins can also change anyone’s entries, budgets and this list.':'Ask an admin to add people or reset a password.'}</p>
-    <div class="entries">${rows}</div></section></div>
+    <p class="muted small" style="margin:0">Everyone signs in with their own username. Each entry records who added it. ${admin?'As head of household you can see, edit and delete everyone’s records, and manage budgets and this list. Family members add entries and can change only their own.':'Ask the head of household to add people or reset a password.'}</p>
+    <div class="entries fam">${rows}</div></section></div>
   <div class="stack">
     ${admin?`<section class="card"><h2>Add a family member</h2>
       <form id="adduser-form" class="grid" style="gap:12px">
         <div class="row2"><div class="field"><label for="nu-name">Name</label><input id="nu-name" placeholder="e.g. Sanjeev" required></div>
         <div class="field"><label for="nu-user">Username</label><input id="nu-user" autocapitalize="none" spellcheck="false" placeholder="e.g. sanjeev" required></div></div>
         <div class="row2"><div class="field"><label for="nu-pass">Starting password</label><input id="nu-pass" type="text" autocomplete="off" placeholder="At least 6 characters" required></div>
-        <div class="field"><label for="nu-role">Access</label><select id="nu-role"><option value="member">Member</option><option value="admin">Admin</option></select></div></div>
+        <div class="field"><label for="nu-role">Access</label><select id="nu-role"><option value="member">Family member</option><option value="admin">Head of household</option></select></div></div>
         <p class="err" id="nu-err" role="alert" style="margin:0"></p>
         <button class="btn primary">Add member</button>
         <p class="muted small" style="margin:0">Share the username and starting password with them. They can change the password here after signing in.</p>
@@ -591,7 +596,7 @@ function vEntries(){
     <div class="filters">
       <input type="search" id="flt-q" placeholder="Search notes, names, categories" value="${esc(S.f.q)}" aria-label="Search entries">
       <select id="flt-type" aria-label="Type"><option value="">All types</option>${['expense','income','loan'].map(x=>`<option value="${x}"${S.f.type===x?' selected':''}>${x[0].toUpperCase()+x.slice(1)}</option>`).join('')}</select>
-      ${(()=>{const names=[...new Set(S.txns.map(t=>whoName(t)||'Unknown'))].sort();return names.length>1?`<select id="flt-by" aria-label="Entered by"><option value="">Everyone</option>${names.map(n=>`<option${S.f.by===n?' selected':''}>${esc(n)}</option>`).join('')}</select>`:''})()}
+      ${(()=>{const names=[...new Set(S.txns.map(t=>whoName(t)||'Unknown'))].sort();return names.length>1||S.f.by?`<select id="flt-by" aria-label="Entered by"><option value="">Everyone</option>${names.map(n=>`<option${S.f.by===n?' selected':''}>${esc(n)}</option>`).join('')}</select>`:''})()}
       <select id="flt-cat" aria-label="Category"><option value="">All categories</option>${S.cats.map(c=>`<option value="${esc(c.id)}"${S.f.cat===c.id?' selected':''}>${esc(c.name)}</option>`).join('')}</select>
     </div>
     ${list.length?`<div class="entries">${html}</div>`:emptyMsg(S.txns.some(t=>inR(t,r))?'No entries match these filters.':`Nothing recorded for ${esc(r.label)}.`,true)}
@@ -648,7 +653,7 @@ function vCategories(){
     ${S.canWrite&&isAdmin()?`<form class="addrow" data-cadd="${type}"><input id="ca-${type}" placeholder="New ${type} category" aria-label="New ${type} category name"><button class="btn">Add</button></form>`:''}</div></section>`;
   };
   const inc=S.cats.filter(c=>c.type==='income').reduce((s,c)=>s+conv(c.budget,c.cur),0), exp=S.cats.filter(c=>c.type==='expense').reduce((s,c)=>s+conv(c.budget,c.cur),0);
-  return `${isAdmin()?'':'<p class="notice" style="margin:0">Only an admin can change budgets, categories and the rate.</p>'}<section class="kpis three">${kpi('Planned income / month',money(inc),'pos')}${kpi('Budgeted spending / month',money(exp),'neg')}${kpi('Planned savings / month',money(inc-exp,{sign:true}),inc-exp>=0?'pos':'neg')}</section>
+  return `${isAdmin()?'':'<p class="notice" style="margin:0">Only the head of household can change budgets, categories and the rate.</p>'}<section class="kpis three">${kpi('Planned income / month',money(inc),'pos')}${kpi('Budgeted spending / month',money(exp),'neg')}${kpi('Planned savings / month',money(inc-exp,{sign:true}),inc-exp>=0?'pos':'neg')}</section>
   <section class="card"><div class="card-h"><h2>Currency</h2></div>
    <div class="row2 stackable" style="max-width:520px;align-items:end">
     <div class="field"><label for="rate-in">₹ per 1 US$</label><input id="rate-in" inputmode="decimal" value="${S.rate}"${dis}></div>
@@ -816,6 +821,7 @@ async function accountForm(f){
 }
 async function userAction(act,uid){
   if(act==='cancel'){S.resetFor=null;render();return}
+  if(act==='records'){const u=S.users.find(x=>x.id===uid);if(!u)return;S.f={q:'',type:'',cat:'',by:u.name};S.period.mode='all';setView('entries');return}
   if(act==='reset'){S.resetFor=uid;render();setTimeout(()=>$('reset-pass')?.focus(),0);return}
   if(act==='remove'&&S.removeArm!==uid){S.removeArm=uid;render();return}
   S.removeArm=null;

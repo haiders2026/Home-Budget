@@ -120,7 +120,7 @@ export default async (req) => {
     const data = await loadData(); data.txns ||= [];
     const i = data.txns.findIndex((t) => t.id === body.id);
     const old = i >= 0 ? data.txns[i] : null;
-    // Family members change only their own entries; admins can change any.
+    // Family members change only their own entries; the head of household (role "admin") can change any.
     if (old && !isAdmin && old.byId !== me.id) return fail("You can only change entries you added.", 403);
     if (a === "delTxn") {
       if (i >= 0) data.txns.splice(i, 1);
@@ -137,7 +137,7 @@ export default async (req) => {
   }
 
   if (a === "config") {
-    if (!isAdmin) return fail("Only an admin can change budgets and categories.", 403);
+    if (!isAdmin) return fail("Only the head of household can change budgets and categories.", 403);
     if (!Array.isArray(body.cats) || !body.cats.length || !(Number(body.rate) > 0)) return fail("Invalid settings.");
     const data = await loadData(); data.cats = body.cats; data.rate = Number(body.rate);
     await store.setJSON("data", data);
@@ -152,7 +152,7 @@ export default async (req) => {
   }
 
   if (a === "addUser") {
-    if (!isAdmin) return fail("Only an admin can add family members.", 403);
+    if (!isAdmin) return fail("Only the head of household can add family members.", 403);
     const name = cleanName(body.name), username = cleanUsername(body.username);
     if (!name || !validUsername(username)) return fail("Enter a name and a username of 2–30 letters, numbers, dots or dashes.");
     if (users.some((x) => x.username === username)) return fail("That username is taken.");
@@ -163,10 +163,10 @@ export default async (req) => {
   }
 
   if (a === "updateUser") {
-    if (!isAdmin) return fail("Only an admin can manage family members.", 403);
+    if (!isAdmin) return fail("Only the head of household can manage family members.", 403);
     const u = users.find((x) => x.id === body.id);
     if (!u) return fail("That person wasn't found.", 404);
-    if (u.id === me.id && (body.role === "member" || body.active === false)) return fail("You can't remove your own admin access.");
+    if (u.id === me.id && (body.role === "member" || body.active === false)) return fail("You can't remove your own head of household access. Make someone else head of household first.");
     if (body.name !== undefined) { const n = cleanName(body.name); if (n) u.name = n; }
     if (body.role === "admin" || body.role === "member") u.role = body.role;
     if (body.password !== undefined) { if (!validPassword(body.password)) return fail("Use a password of at least 6 characters."); setPassword(u, body.password); }

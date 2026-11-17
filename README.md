@@ -34,16 +34,18 @@ Netlify Drop (drag and drop) won't work for this site. Drop publishes only stati
 
 ## Family accounts
 
-- `BUDGET_PASSCODE` is used only once, to create the first admin account. It stops a stranger who finds the site from setting it up first. After that, everyone signs in with their own username and password.
-- **Admins** can:
+- `BUDGET_PASSCODE` is used only once, to create the first account, which belongs to the head of household. It stops a stranger who finds the site from setting it up first. After that, everyone signs in with their own username and password.
+- The **head of household** can:
+  - see every family member's records. On the Family tab, **View records** next to a person lists everything they entered.
+  - edit or delete any entry
   - add family members, reset passwords and remove people
-  - edit any entry
   - change budgets, categories and the exchange rate
-- **Members** can add entries, and can edit or delete only the entries they added.
+  - make another person head of household too, for example a second parent
+- **Family members** can see the household's records, add entries, and can edit or delete only the entries they added.
 - Every entry shows "by Name". If someone else edits it, it also shows "edited by Name". The Overview has an **Entered by** card, and the Transactions tab has a filter for each person.
 - **Forgot password?** on the sign-in screen offers two ways back in:
-  - A member enters their username to ask for a reset. Admins see the request on the Family tab, shown as **Family (1)**, set a new password there, and tell the member.
-  - Anyone who knows `BUDGET_PASSCODE`, which normally means the admin, can choose a new password for any account, their own included, without signing in. This is how an admin who forgot their own password gets back in.
+  - A member enters their username to ask for a reset. The head of household sees the request on the Family tab, shown as **Family (1)**, set a new password there, and tell the member.
+  - Anyone who knows `BUDGET_PASSCODE`, which normally means the head of household, can choose a new password for any account, their own included, without signing in. This is how a head of household who forgot their own password gets back in.
 - Removing someone signs them out right away. Their past entries keep their name.
 - Each device stays signed in for 60 days. Changing a password signs that person out on their other devices.
 - Everyone sees the same data. An entry added on one phone shows up on the others within a minute, or as soon as the app is reopened.
