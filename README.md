@@ -41,7 +41,7 @@ Netlify Drop (drag and drop) won't work for this site. Drop publishes only stati
   - add family members, reset passwords and remove people
   - change budgets, categories and the exchange rate
   - make another person head of household too, for example a second parent
-- **Family members** can see the household's records, add entries, and can edit or delete only the entries they added.
+- **Family members** see only their own entries, enforced on the server, not just hidden on screen. They can add entries, and can edit or delete only the entries they added.
 - Every entry shows "by Name". If someone else edits it, it also shows "edited by Name". The Overview has an **Entered by** card, and the Transactions tab has a filter for each person.
 - **Forgot password?** on the sign-in screen offers two ways back in:
   - A member enters their username to ask for a reset. The head of household sees the request on the Family tab, shown as **Family (1)**, set a new password there, and tell the member.

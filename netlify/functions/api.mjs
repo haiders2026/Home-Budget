@@ -112,7 +112,14 @@ export default async (req) => {
   const me = await readToken(store, (req.headers.get("authorization") || "").replace(/^Bearer /, ""), users);
   if (!me) return fail("Please sign in again.", 401);
   const isAdmin = me.role === "admin";
-  const everything = async (data) => json({ ...(data || (await loadData())), me: publicUser(me), users: users.map(publicUser) });
+  // The head of household sees every entry and every account; a family member sees only their own.
+  // Entries from before accounts existed have no byId and are matched by name.
+  const ownsEntry = (t) => t.byId === me.id || (!t.byId && t.by === me.name);
+  const everything = async (data) => {
+    const d = data || (await loadData());
+    if (isAdmin) return json({ ...d, me: publicUser(me), users: users.map(publicUser) });
+    return json({ ...d, txns: (d.txns || []).filter(ownsEntry), me: publicUser(me), users: [publicUser(me)] });
+  };
 
   if (a === "data") return everything();
 
@@ -121,7 +128,7 @@ export default async (req) => {
     const i = data.txns.findIndex((t) => t.id === body.id);
     const old = i >= 0 ? data.txns[i] : null;
     // Family members change only their own entries; the head of household (role "admin") can change any.
-    if (old && !isAdmin && old.byId !== me.id) return fail("You can only change entries you added.", 403);
+    if (old && !isAdmin && !ownsEntry(old)) return fail("You can only change entries you added.", 403);
     if (a === "delTxn") {
       if (i >= 0) data.txns.splice(i, 1);
     } else {

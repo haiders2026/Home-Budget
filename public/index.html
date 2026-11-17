@@ -322,7 +322,7 @@ function monthSeries(endY,endM,n){
 let cfgTimer=null, cfgChain=Promise.resolve();
 function configBody(){return{cats:S.cats,rate:S.rate}}
 const isAdmin=()=>S.mode!=='remote'||S.me?.role==='admin';
-const mayEdit=t=>S.mode!=='remote'||isAdmin()||t.byId===S.me?.id;
+const mayEdit=t=>S.mode!=='remote'||isAdmin()||t.byId===S.me?.id||(!t.byId&&t.by===S.me?.name);
 function whoName(t){return S.users.find(u=>u.id===t.byId)?.name||t.by||''}
 function saveConfig(){
   if(!isAdmin())return;
@@ -413,7 +413,7 @@ function render(){
   document.querySelector('.rail').hidden=authed;
   document.getElementById('who').innerHTML=S.me?`<span>Signed in as <b>${esc(S.me.name)}</b></span> <button class="linkish" data-act="signout">Sign out</button>`:'';
   const st=document.getElementById('status');
-  st.textContent=S.mode==='loading'?'Loading your ledger…':S.mode==='setup'?'First-time setup':S.mode==='signin'?'Sign in to open the family planner':S.mode==='error'?'Can’t reach the planner’s storage':`${S.txns.length} ${S.txns.length===1?'entry':'entries'} · ${S.mode==='remote'?'shared with your family':'saved in this browser only'}`;
+  st.textContent=S.mode==='loading'?'Loading your ledger…':S.mode==='setup'?'First-time setup':S.mode==='signin'?'Sign in to open the family planner':S.mode==='error'?'Can’t reach the planner’s storage':`${S.txns.length} ${S.txns.length===1?'entry':'entries'} · ${S.mode!=='remote'?'saved in this browser only':isAdmin()?'everyone’s entries in the household':'your entries, private to you and the head of household'}`;
   const n=document.getElementById('notice');
   n.hidden=!(S.mode==='local'||S.mode==='error');
   n.textContent=S.mode==='error'?`The storage function replied with an error: ${S.err||'unknown'}. Check the BUDGET_PASSCODE setting in Netlify.`:'The online storage isn’t reachable from here, so entries are kept in this browser only. Deploy the site with its function to save online.';
@@ -496,8 +496,8 @@ function vFamily(){
   const askCard=asks.length?`<section class="card" style="border:1px solid var(--accent)"><h2>Password reset requests</h2>
     ${asks.map(u=>`<div class="entry"><div style="min-width:0"><div class="t">${esc(u.name)} forgot their password</div><div class="d">Asked ${fmtDate(new Date(u.resetRequested).toISOString().slice(0,10))}. Set a new one, then tell them.</div></div><div></div>
       <div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end"><button class="btn primary small" data-uact="reset" data-uid="${esc(u.id)}">Set new password</button><button class="btn ghost small" data-uact="dismiss" data-uid="${esc(u.id)}">Dismiss</button></div></div>`).join('')}</section>`:'';
-  return `${askCard}<div class="two"><div class="stack"><section class="card"><div class="card-h"><h2>Family members</h2><span class="muted small">${S.users.filter(u=>u.active).length} active</span></div>
-    <p class="muted small" style="margin:0">Everyone signs in with their own username. Each entry records who added it. ${admin?'As head of household you can see, edit and delete everyone’s records, and manage budgets and this list. Family members add entries and can change only their own.':'Ask the head of household to add people or reset a password.'}</p>
+  return `${askCard}<div class="two"><div class="stack"><section class="card"><div class="card-h"><h2>${admin?'Family members':'Your account'}</h2>${admin?`<span class="muted small">${S.users.filter(u=>u.active).length} active</span>`:''}</div>
+    <p class="muted small" style="margin:0">Everyone signs in with their own username. Each entry records who added it. ${admin?'As head of household you can see, edit and delete everyone’s records, and manage budgets and this list. Family members see and change only their own entries.':'Your entries are private: only you and the head of household can see them. Ask the head of household to add people or reset a password.'}</p>
     <div class="entries fam">${rows}</div></section></div>
   <div class="stack">
     ${admin?`<section class="card"><h2>Add a family member</h2>
@@ -562,7 +562,7 @@ function vOverview(){
 
   const per={};for(const x of S.txns){if(!inR(x,r))continue;const ty=typeOf(x,cm),k=whoName(x)||'Unknown';const o=per[k]||(per[k]={n:0,exp:0,inc:0});o.n++;if(ty==='expense')o.exp+=val(x);else if(ty==='income')o.inc+=val(x)}
   const people=Object.entries(per).sort((a,b)=>b[1].exp-a[1].exp||b[1].n-a[1].n);
-  const whoCard=people.length?`<section class="card"><div class="card-h"><h2>Entered by</h2><span class="muted small">${esc(r.label)}</span></div><div class="bars">${people.map(([k,o])=>`<div class="bar-row"><span class="nm">${esc(k)} <span class="muted small">· ${o.n} ${o.n===1?'entry':'entries'}</span></span><span class="amt">${o.exp?`<span class="neg">${money(o.exp)} spent</span>`:''}${o.exp&&o.inc?' · ':''}${o.inc?`<span class="pos">${money(o.inc)} in</span>`:''}</span></div>`).join('')}</div></section>`:'';
+  const whoCard=people.length&&isAdmin()?`<section class="card"><div class="card-h"><h2>Entered by</h2><span class="muted small">${esc(r.label)}</span></div><div class="bars">${people.map(([k,o])=>`<div class="bar-row"><span class="nm">${esc(k)} <span class="muted small">· ${o.n} ${o.n===1?'entry':'entries'}</span></span><span class="amt">${o.exp?`<span class="neg">${money(o.exp)} spent</span>`:''}${o.exp&&o.inc?' · ':''}${o.inc?`<span class="pos">${money(o.inc)} in</span>`:''}</span></div>`).join('')}</div></section>`:'';
   return kp+`<div class="two"><div class="stack">${budgetCard}${whoCard}</div><div class="stack">${trend}${incCard}${recentCard}</div></div>`;
 }
 function legend(){return `<div class="legend"><span><i style="background:var(--inc)"></i>Income</span><span><i style="background:var(--exp)"></i>Expenses</span></div>`}
