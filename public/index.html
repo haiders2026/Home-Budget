@@ -251,6 +251,9 @@ const DEFAULT_CATS=[
   C('loan','Loan Taken',0,'in'),C('loan','Loan Accepted',0,'in'),C('loan','Loan Returned',0,'out')
 ];
 
+// Every category list is alphabetical, with "Other"/"Others" always last.
+const isOther=c=>/^others?$/i.test(String(c.name||'').trim());
+const sortCats=cs=>cs.slice().sort((a,b)=>(isOther(a)-isOther(b))||String(a.name).localeCompare(String(b.name),'en',{sensitivity:'base'}));
 const ls={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const pad=n=>String(n).padStart(2,'0');
@@ -261,7 +264,7 @@ const fmtDate=s=>{const [y,m,d]=s.split('-').map(Number);return `${d} ${MON[m-1]
 
 const now=new Date();
 const S={
-  cats:DEFAULT_CATS.map(c=>({...c})), rate:88, txns:[],
+  cats:sortCats(DEFAULT_CATS.map(c=>({...c}))), rate:88, txns:[],
   cur:ls.get('hbp.cur')==='USD'?'USD':'INR',
   view:'overview', period:{mode:'month',y:now.getFullYear(),m:now.getMonth(),from:'',to:''},
   f:{q:'',type:'',cat:'',by:''}, showAll:false,
@@ -333,7 +336,7 @@ function saveConfig(){
   },500);
 }
 function saveLocal(){ls.set('hbp.local',JSON.stringify({txns:S.txns,...configBody()}))}
-function loadLocal(){try{const d=JSON.parse(ls.get('hbp.local')||'null');if(d){S.txns=d.txns||[];if(d.cats)S.cats=d.cats;if(d.rate)S.rate=d.rate}}catch(e){}}
+function loadLocal(){try{const d=JSON.parse(ls.get('hbp.local')||'null');if(d){S.txns=d.txns||[];if(d.cats)S.cats=sortCats(d.cats);if(d.rate)S.rate=d.rate}}catch(e){}}
 async function putTxn(id,body){
   if(S.mode==='remote'){const nid=id||('t'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
     const i=S.txns.findIndex(t=>t.id===nid);
@@ -365,7 +368,7 @@ async function api(action,data={}){
 function applyRemote(d){
   if(!d)return;
   if(Array.isArray(d.txns))S.txns=d.txns;
-  if(Array.isArray(d.cats)&&d.cats.length)S.cats=d.cats;
+  if(Array.isArray(d.cats)&&d.cats.length)S.cats=sortCats(d.cats);
   if(d.rate>0)S.rate=d.rate;
   if(d.me)S.me=d.me;
   if(Array.isArray(d.users))S.users=d.users;
@@ -535,9 +538,9 @@ function vOverview(){
     ${kpi('Loans outstanding',money(loan),'loanc',`As of ${fmtDate(endDate>today&&r.to==='9999-12-31'?today:endDate)}`)}
   </section>`;
 
-  const rows=exCats.map(c=>({c,a:t.by[c.id]||0,b:budgetOf(c)})).filter(x=>x.a||x.b).sort((x,y)=>y.a-x.a||y.b-x.b);
+  const rows=exCats.map(c=>({c,a:t.by[c.id]||0,b:budgetOf(c)})).filter(x=>x.a||x.b);
   const orphan=Object.keys(t.by).filter(id=>!cm[id]&&S.txns.some(x=>x.cat===id&&typeOf(x,cm)==='expense'));
-  const shown=S.showAll?rows:rows.slice(0,10);
+  const shown=rows;
   const bars=shown.map(({c,a,b})=>{
     const pct=b?a/b:0, cls=!b?'plain':pct>1?'over':pct>.85?'warn':'';
     const w=b?Math.min(pct,1)*100:(a?100:0);
@@ -546,10 +549,10 @@ function vOverview(){
       <div class="track" role="img" aria-label="${esc(c.name)}: ${money(a)} of ${b?money(b):'no budget'}"><div class="fill ${cls}" style="width:${w}%"></div></div></div>`;
   }).join('');
   const budgetCard=`<section class="card"><div class="card-h"><h2>Spending vs budget</h2><span class="muted small">${r.months===1?'Monthly budgets':`Budgets × ${r.months%1?r.months.toFixed(1):r.months} months`}</span></div>
-    ${rows.length?`<div class="bars">${bars}</div>${rows.length>10?`<button class="linkish" data-act="toggle-all">${S.showAll?'Show fewer':`Show all ${rows.length} categories`}</button>`:''}`:emptyMsg('No expense budgets yet.')}
+    ${rows.length?`<div class="bars">${bars}</div>`:emptyMsg('No expense budgets yet.')}
     ${orphan.length?`<p class="muted small">Some entries use categories that were removed; they still count in the totals.</p>`:''}</section>`;
 
-  const incRows=inCats.map(c=>({c,a:t.by[c.id]||0,b:budgetOf(c)})).filter(x=>x.a||x.b).sort((x,y)=>y.a-x.a);
+  const incRows=inCats.map(c=>({c,a:t.by[c.id]||0,b:budgetOf(c)})).filter(x=>x.a||x.b);
   const incCard=`<section class="card"><div class="card-h"><h2>Income</h2><span class="muted small">Received / planned</span></div><div class="bars">${incRows.map(({c,a,b})=>`<div class="bar-row"><span class="nm">${esc(c.name)}</span><span class="amt"><b>${money(a)}</b> <span class="muted">/ ${b?money(b):'–'}</span></span><div class="track"><div class="fill" style="width:${b?Math.min(a/b,1)*100:(a?100:0)}%"></div></div></div>`).join('')||emptyMsg('No income categories.')}</div></section>`;
 
   const [ey,em]=(r.to==='9999-12-31'?today:r.to).split('-').map(Number);
@@ -765,7 +768,7 @@ document.addEventListener('change',e=>{
   if(t.id==='flt-by'){S.f.by=t.value;render();return}
   if(t.id==='rate-in'){const v=parseFloat(t.value);if(v>0){S.rate=v;saveConfig()}else t.value=S.rate;pending=true;return}
   const c=S.cats.find(x=>x.id===(t.dataset.cname||t.dataset.cbudget||t.dataset.cdir)); if(!c)return;
-  if(t.dataset.cname){const n=t.value.trim();if(n){c.name=n;saveConfig()}else t.value=c.name}
+  if(t.dataset.cname){const n=t.value.trim();if(n){c.name=n;S.cats=sortCats(S.cats);saveConfig()}else t.value=c.name}
   if(t.dataset.cbudget){const v=parseFloat(t.value.replace(/[,\s]/g,''));c.budget=v>0?Math.round(v*100)/100:0;c.cur=S.cur;saveConfig()}
   if(t.dataset.cdir){c.dir=t.value;saveConfig()}
   pending=true;
@@ -778,7 +781,7 @@ document.addEventListener('submit',e=>{
   const f=e.target.closest('[data-cadd]'); if(!f)return; e.preventDefault();
   const type=f.dataset.cadd, inp=f.querySelector('input'), name=inp.value.trim(); if(!name)return;
   let id=slug(name); while(S.cats.some(c=>c.id===id))id+='-2';
-  S.cats.push({id,type,name,budget:0,cur:S.cur,...(type==='loan'?{dir:'in'}:{})}); saveConfig(); inp.value=''; render(); toast(`Added ${name}`);
+  S.cats=sortCats([...S.cats,{id,type,name,budget:0,cur:S.cur,...(type==='loan'?{dir:'in'}:{})}]); saveConfig(); inp.value=''; inp.blur(); render(); toast(`Added ${name}`);
 });
 
 async function accountForm(f){
