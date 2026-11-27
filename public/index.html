@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Crect width=%2264%22 height=%2264%22 rx=%2232%22 fill=%22%232CA01C%22/%3E%3Ctext x=%2232%22 y=%2244%22 font-size=%2234%22 text-anchor=%22middle%22 fill=%22white%22 font-family=%22sans-serif%22 font-weight=%22700%22%3E%E2%82%B9%3C/text%3E%3C/svg%3E">
 <title>Home Budget Ledger</title>
 <style>
-/* Layout: white top bar with brand + actions, a navigation strip (Dashboard, Cash at Bank, Income, Expense, Loans, Journal, Reports, Lists, Family),
+/* Layout: white top bar with brand + actions, a navigation strip (Dashboard, Cash at Bank, Cash available, Expense, Loans, Journal, Reports, Lists, Family),
    a period bar, then the active view. Tables follow an accounting-software look: grey header row, right-aligned amounts, bold totals. */
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
   --bg:#F4F5F8; --surface:#FFFFFF; --sunk:#ECEEF1; --head:#F4F5F8; --ink:#393A3D; --muted:#6B6C72; --line:#DCDCDC; --line2:#BABEC5;
@@ -236,7 +236,7 @@ svg.chart text{fill:var(--muted);font-size:11.5px;font-family:var(--f)}
     <div class="panel-h"><h2 id="form-title">New transaction</h2><button type="button" class="btn ghost" data-close>Close</button></div>
     <div class="panel-b">
       <div class="seg full" role="group" aria-label="Transaction type" id="f-type">
-        <button type="button" data-type="income" aria-pressed="false">Income</button>
+        <button type="button" data-type="income" aria-pressed="false">Cash available</button>
         <button type="button" data-type="expense" aria-pressed="true">Expense</button>
         <button type="button" data-type="loan" aria-pressed="false">Loan</button>
         <button type="button" data-type="bank" aria-pressed="false">Bank</button>
@@ -338,7 +338,7 @@ function partyOf(t,cm=catMap()){
   return '';
 }
 const val=t=>conv(t.amount,t.cur);
-const KIND_LABEL={income:'Income',expense:'Expense',loan:'Loan',opening:'Opening Balance',transfer:'Transfer'};
+const KIND_LABEL={income:'Cash available',expense:'Expense',loan:'Loan',opening:'Opening Balance',transfer:'Transfer'};
 
 // How an entry moves money in each account: [{acct, amt}] where amt is + for money in, − for money out.
 function effects(t,cm=catMap()){
@@ -353,7 +353,7 @@ function balance(a,upto,cm=catMap(),before=false){let b=0;for(const t of S.txns)
 // Double-entry lines for the Journal: debit what receives value, credit where it came from.
 function jlines(t,cm=catMap()){
   const k=kindOf(t,cm), v=val(t), A=ACCTS[acctOf(t)], nm=catName(t,cm);
-  if(k==='income')return [[A,v,0],[`Income: ${nm}`,0,v]];
+  if(k==='income')return [[A,v,0],[`Cash available: ${nm}`,0,v]];
   if(k==='expense')return [[`Expense: ${nm}`,v,0],[A,0,v]];
   if(k==='opening')return [[A,v,0],['Opening Balance Equity',0,v]];
   if(k==='transfer')return [[ACCTS[t.to==='cash'?'cash':'bank'],v,0],[ACCTS[t.from==='cash'?'cash':'bank'],0,v]];
@@ -528,7 +528,7 @@ function renderPeriod(){
 }
 
 function kpi(label,v,cls,sub,hero){return `<div class="kpi${hero?' hero':''}"><span class="label">${label}</span><span class="v ${cls||''}">${v}</span>${sub?`<span class="sub">${sub}</span>`:''}</div>`}
-function emptyMsg(msg,withAdd,type){return `<div class="empty"><span>${msg}</span>${withAdd&&S.canWrite?`<button class="btn" data-new="${type||''}">+ New ${type&&type!=='bank'?type:'transaction'}</button>`:''}</div>`}
+function emptyMsg(msg,withAdd,type){return `<div class="empty"><span>${msg}</span>${withAdd&&S.canWrite?`<button class="btn" data-new="${type||''}">+ New ${type==='income'?'cash available':type&&type!=='bank'?type:'transaction'}</button>`:''}</div>`}
 const edBtn=t=>S.canWrite&&mayEdit(t)?`<button class="ed" data-edit="${esc(t.id)}">Edit</button>`:'';
 function byLine(t){const w=whoName(t);return w?`<div class="by">by ${esc(w)}${t.editedBy&&t.editedBy!==w?` · edited by ${esc(t.editedBy)}`:''}</div>`:''}
 const origAmt=t=>t.cur&&t.cur!==S.cur?`<div class="by">${moneyIn(t.amount,t.cur)}</div>`:'';
@@ -542,7 +542,7 @@ function vDashboard(){
   const net=t.inc-t.exp;
   const kp=`<section class="kpis" aria-label="Summary for ${esc(r.label)}">
     ${kpi('Cash at Bank',money(bank),bank<0?'neg':'',`Balance on ${fmtDate(end)}${Math.abs(cash)>.004?` · Cash in hand ${money(cash)}`:''}`,true)}
-    ${kpi('Income',money(t.inc),'pos',esc(r.label))}
+    ${kpi('Cash available',money(t.inc),'pos',esc(r.label))}
     ${kpi('Expenses',money(t.exp),'neg',`Net income ${money(net,{sign:true})}`)}
     ${kpi('Loans',`${money(pay)}`,'loanc',`Payable (we owe) · Receivable ${money(rec)}`)}
   </section>`;
@@ -555,20 +555,20 @@ function vDashboard(){
   const exCard=`<section class="card"><div class="card-h"><h2>Expenses by type of expense</h2><button class="linkish" data-goto="expense">Open Expense</button></div>${rows.length?`<div class="bars">${bars}</div>`:emptyMsg(`No expenses in ${esc(r.label)}.`,true,'expense')}</section>`;
   const [ey,em]=end.split('-').map(Number);
   const ser=S.period.mode==='year'?monthSeries(S.period.y,11,12):monthSeries(ey,em-1,6);
-  const trend=`<section class="card"><div class="card-h"><h2>Income and expenses</h2>${legend()}</div>${barChart(ser,S.period.mode==='month'?{y:S.period.y,m:S.period.m}:null)}</section>`;
+  const trend=`<section class="card"><div class="card-h"><h2>Cash available and expenses</h2>${legend()}</div>${barChart(ser,S.period.mode==='month'?{y:S.period.y,m:S.period.m}:null)}</section>`;
   const recent=S.txns.filter(x=>inR(x,r)).sort(byDateDesc).slice(0,8);
   const recentCard=`<section class="card"><div class="card-h"><h2>Recent transactions</h2>${recent.length?'<button class="linkish" data-goto="journal">View journal</button>':''}</div>
     ${recent.length?table(['Date','Type','Name / Type','Amount',''],recent.map(x=>{const k=kindOf(x,cm),e=effects(x,cm).find(e=>e.acct==='bank')?.amt??effects(x,cm)[0].amt;
       return `<tr><td>${fmtDate(x.date)}</td><td>${kindChip(x,cm)}</td><td>${esc(catName(x,cm))}${partyOf(x,cm)?`<div class="by">${esc(partyOf(x,cm))}</div>`:''}</td><td class="n ${k==='transfer'?'':e>=0?'pos':'neg'}">${k==='transfer'?money(val(x)):money(e,{sign:true})}</td><td>${edBtn(x)}</td></tr>`}).join('')):emptyMsg(`Nothing recorded for ${esc(r.label)} yet.`,true)}</section>`;
   const per={};for(const x of S.txns){if(!inR(x,r))continue;const k=kindOf(x,cm),w=whoName(x)||'Unknown';const o=per[w]||(per[w]={n:0,exp:0,inc:0});o.n++;if(k==='expense')o.exp+=val(x);else if(k==='income')o.inc+=val(x)}
   const people=Object.entries(per).sort((a,b)=>b[1].exp-a[1].exp||b[1].n-a[1].n);
-  const whoCard=people.length>1&&isAdmin()?`<section class="card"><div class="card-h"><h2>Entered by</h2><span class="muted small">${esc(r.label)}</span></div>${table(['Name','Entries','Income','Expense'],people.map(([k,o])=>`<tr><td>${esc(k)}</td><td class="n">${o.n}</td><td class="n">${num(o.inc)}</td><td class="n">${num(o.exp)}</td></tr>`).join(''))}</section>`:'';
+  const whoCard=people.length>1&&isAdmin()?`<section class="card"><div class="card-h"><h2>Entered by</h2><span class="muted small">${esc(r.label)}</span></div>${table(['Name','Entries','Cash available','Expense'],people.map(([k,o])=>`<tr><td>${esc(k)}</td><td class="n">${o.n}</td><td class="n">${num(o.inc)}</td><td class="n">${num(o.exp)}</td></tr>`).join(''))}</section>`:'';
   return kp+`<div class="two"><div class="stack">${exCard}${whoCard}</div><div class="stack">${trend}${recentCard}</div></div>`;
 }
 function kindChip(t,cm){const k=kindOf(t,cm);
   if(k==='loan'){const {dir,side}=loanOf(t,cm);return `<span class="chip loan">${side==='payable'?(dir==='in'?'Loan taken':'Loan repaid'):(dir==='out'?'Loan given':'Loan received')}</span>`}
   return `<span class="chip ${k==='income'?'inc':k==='expense'?'exp':''}">${KIND_LABEL[k]}</span>`}
-function legend(){return `<div class="legend"><span><i style="background:var(--inc)"></i>Income</span><span><i style="background:var(--exp)"></i>Expenses</span></div>`}
+function legend(){return `<div class="legend"><span><i style="background:var(--inc)"></i>Cash available</span><span><i style="background:var(--exp)"></i>Expenses</span></div>`}
 
 /* ---------- Cash at Bank register ---------- */
 function vBank(){
@@ -584,7 +584,7 @@ function vBank(){
   const tot=`<tr class="tot"><td colspan="6">Ending balance</td><td class="n">${money(pay)}</td><td class="n">${money(dep)}</td><td class="n">${money(bal)}</td><td></td></tr>`;
   return `<div class="toolbar"><div class="seg" role="group" aria-label="Account">${Object.entries(ACCTS).map(([k,v])=>`<button type="button" data-acct="${k}" aria-pressed="${k===A}">${v}</button>`).join('')}</div>
     ${S.canWrite?`<div class="actions"><button class="btn" data-new="bank" data-kind="opening">Opening balance</button><button class="btn" data-new="bank" data-kind="transfer">Transfer</button><button class="btn primary" data-new="income">+ Money in</button><button class="btn primary" data-new="expense">+ Money out</button></div>`:''}</div>
-  <section class="kpis">${kpi('Beginning balance',money(start),'',r.from==='0000-01-01'?'Start of records':fmtDate(r.from))}${kpi('Deposits',money(dep),'pos','Income, loans taken, money received')}${kpi('Payments',money(pay),'neg','Expenses, loans given, repayments')}${kpi('Ending balance',money(bal),bal<0?'neg':'',`On ${fmtDate(endOf(r))}`,true)}</section>
+  <section class="kpis">${kpi('Beginning balance',money(start),'',r.from==='0000-01-01'?'Start of records':fmtDate(r.from))}${kpi('Deposits',money(dep),'pos','Cash available, loans taken, money received')}${kpi('Payments',money(pay),'neg','Expenses, loans given, repayments')}${kpi('Ending balance',money(bal),bal<0?'neg':'',`On ${fmtDate(endOf(r))}`,true)}</section>
   <section class="card"><div class="card-h"><h2>${name} register</h2><span class="muted small">${esc(r.label)}</span></div>
    <p class="hint">${A==='bank'?'All money coming in (income and loans taken) is deposited here. Expenses and loans you give are deducted only when you choose “Cash at Bank” as the account on the entry.':'Money spent or received in cash, outside the bank. Use Transfer to move money between Cash in Hand and Cash at Bank.'}</p>
    ${table(['Date','No.','Type','Payee / Name','Account','Memo','Payment','Deposit','Balance',''],fwd+rows+tot)}</section>`;
@@ -592,7 +592,8 @@ function vBank(){
 
 /* ---------- Income / Expense ---------- */
 function vKind(kind){
-  const r=range(), cm=catMap(), q=S.f.q.trim().toLowerCase(), word=kind==='expense'?'Type of Expense':'Type of Income';
+  const KN=kind==='expense'?'expense':'cash available';
+  const r=range(), cm=catMap(), q=S.f.q.trim().toLowerCase(), word=kind==='expense'?'Type of Expense':'Type of Cash available';
   const base=S.txns.filter(t=>inR(t,r)&&kindOf(t,cm)===kind);
   const cats=S.cats.filter(c=>c.type===kind);
   const sum={};for(const t of base){const o=sum[t.cat]||(sum[t.cat]={n:0,a:0});o.n++;o.a+=val(t)}
@@ -601,7 +602,7 @@ function vKind(kind){
   const total=base.reduce((s,t)=>s+val(t),0), tb=cats.reduce((s,c)=>s+budgetOf(c),0);
   const sumRows=ids.map(id=>{const o=sum[id]||{n:0,a:0},c=cm[id],b=c?budgetOf(c):0,nm=c?.name||catName(base.find(t=>t.cat===id),cm);
     return `<tr class="click" data-fcat="${esc(id)}"${S.f.cat===id?' style="outline:2px solid var(--brand);outline-offset:-2px"':''}><td><button class="linkish" data-fcat="${esc(id)}">${esc(nm)}</button></td><td class="n">${o.n||''}</td><td class="n">${num(o.a)}</td>${kind==='expense'?`<td class="n">${num(b)}</td><td class="n ${b&&o.a>b?'neg':''}">${b?money(b-o.a):''}</td>`:''}</tr>`}).join('');
-  const sumTable=table([word,'Times','Amount',...(kind==='expense'?['Budget','Remaining']:[])],sumRows+`<tr class="tot"><td>Total ${kind}</td><td class="n">${base.length}</td><td class="n">${money(total)}</td>${kind==='expense'?`<td class="n">${num(tb)}</td><td class="n ${total>tb&&tb?'neg':''}">${tb?money(tb-total):''}</td>`:''}</tr>`);
+  const sumTable=table([word,'Times','Amount',...(kind==='expense'?['Budget','Remaining']:[])],sumRows+`<tr class="tot"><td>Total ${KN}</td><td class="n">${base.length}</td><td class="n">${money(total)}</td>${kind==='expense'?`<td class="n">${num(tb)}</td><td class="n ${total>tb&&tb?'neg':''}">${tb?money(tb-total):''}</td>`:''}</tr>`);
   let list=base.slice();
   if(S.f.cat)list=list.filter(t=>t.cat===S.f.cat);
   if(S.f.acct)list=list.filter(t=>acctOf(t)===S.f.acct);
@@ -611,17 +612,17 @@ function vKind(kind){
   const lt=list.reduce((s,t)=>s+val(t),0);
   const rows=list.map(t=>`<tr><td>${fmtDate(t.date)}</td><td>${esc(t.num||'')}</td><td>${esc(partyOf(t,cm))}</td><td>${esc(catName(t,cm))}</td><td class="memo">${esc(t.note||'')}${byLine(t)}</td><td>${ACCTS[acctOf(t)]}</td><td>${esc(t.method||'')}</td><td class="n">${money(val(t))}${origAmt(t)}</td><td>${edBtn(t)}</td></tr>`).join('');
   const names=[...new Set(S.txns.map(t=>whoName(t)||'Unknown'))].sort();
-  return `<div class="toolbar"><p class="hint">${kind==='expense'?'Every expense is recorded against a Type of Expense. The same type can be used as many times as needed; Times shows how often it occurred.':'Income is deposited to Cash at Bank unless you choose Cash in Hand on the entry.'}</p>${S.canWrite?`<button class="btn primary" data-new="${kind}">+ New ${kind}</button>`:''}</div>
-  <div class="two"><section class="card"><div class="card-h"><h2>${cap(kind)} by ${word.toLowerCase()}</h2><span class="muted small">${esc(r.label)}</span></div>${sumTable}${S.f.cat?'<button class="linkish" data-fcat="">Show all types</button>':''}</section>
-  <section class="stack">${kpi(`Total ${kind}`,money(total),kind==='expense'?'neg':'pos',`${base.length} ${base.length===1?'entry':'entries'} · ${esc(r.label)}`,true)}${kind==='expense'&&tb?kpi('Budget for period',money(tb),'',`${Math.round(total/tb*100)}% used`):''}</section></div>
-  <section class="card"><div class="card-h"><h2>${cap(kind)} transactions${S.f.cat?` · ${esc(cm[S.f.cat]?.name||'')}`:''}</h2><span class="small"><b>${money(lt)}</b> · <button class="linkish" data-act="csv">Export CSV</button></span></div>
+  return `<div class="toolbar"><p class="hint">${kind==='expense'?'Every expense is recorded against a Type of Expense. The same type can be used as many times as needed; Times shows how often it occurred.':'Cash available is deposited to Cash at Bank unless you choose Cash in Hand on the entry.'}</p>${S.canWrite?`<button class="btn primary" data-new="${kind}">+ New ${KN}</button>`:''}</div>
+  <div class="two"><section class="card"><div class="card-h"><h2>${cap(KN)} by ${word.toLowerCase()}</h2><span class="muted small">${esc(r.label)}</span></div>${sumTable}${S.f.cat?'<button class="linkish" data-fcat="">Show all types</button>':''}</section>
+  <section class="stack">${kpi(`Total ${KN}`,money(total),kind==='expense'?'neg':'pos',`${base.length} ${base.length===1?'entry':'entries'} · ${esc(r.label)}`,true)}${kind==='expense'&&tb?kpi('Budget for period',money(tb),'',`${Math.round(total/tb*100)}% used`):''}</section></div>
+  <section class="card"><div class="card-h"><h2>${cap(KN)} transactions${S.f.cat?` · ${esc(cm[S.f.cat]?.name||'')}`:''}</h2><span class="small"><b>${money(lt)}</b> · <button class="linkish" data-act="csv">Export CSV</button></span></div>
     <div class="filters">
       <input type="search" id="flt-q" placeholder="Search payee, memo, number" value="${esc(S.f.q)}" aria-label="Search">
       <select id="flt-cat" aria-label="${word}"><option value="">All ${word.toLowerCase().replace('type','types')}</option>${cats.map(c=>`<option value="${esc(c.id)}"${S.f.cat===c.id?' selected':''}>${esc(c.name)}</option>`).join('')}</select>
       <select id="flt-acct" aria-label="Account"><option value="">All accounts</option>${Object.entries(ACCTS).map(([k,v])=>`<option value="${k}"${S.f.acct===k?' selected':''}>${v}</option>`).join('')}</select>
       ${names.length>1||S.f.by?`<select id="flt-by" aria-label="Entered by"><option value="">Everyone</option>${names.map(n=>`<option${S.f.by===n?' selected':''}>${esc(n)}</option>`).join('')}</select>`:''}
     </div>
-    ${list.length?table(['Date','No.',kind==='expense'?'Payee':'Received from',word,'Memo',kind==='expense'?'Paid from':'Deposited to','Method','Amount',''],rows):emptyMsg(base.length?'No entries match these filters.':`No ${kind} recorded for ${esc(r.label)}.`,true,kind)}
+    ${list.length?table(['Date','No.',kind==='expense'?'Payee':'Received from',word,'Memo',kind==='expense'?'Paid from':'Deposited to','Method','Amount',''],rows):emptyMsg(base.length?'No entries match these filters.':`No ${KN} recorded for ${esc(r.label)}.`,true,kind)}
   </section>`;
 }
 
@@ -668,7 +669,7 @@ function vJournal(){
 }
 
 /* ---------- Reports ---------- */
-const REPORTS={expense:'Expenses by Type of Expense',income:'Income by Type of Income',loan:'Loans by Type of Loan',pl:'Profit and Loss'};
+const REPORTS={expense:'Expenses by Type of Expense',income:'Cash available by Type',loan:'Loans by Type of Loan',pl:'Profit and Loss'};
 function vReports(){
   const r=range(), cm=catMap(), R=S.rep;
   const ctl=`<div class="toolbar noprint"><div class="filters"><select id="rep-kind" aria-label="Report">${Object.entries(REPORTS).map(([k,v])=>`<option value="${k}"${R.kind===k?' selected':''}>${v}</option>`).join('')}</select>
@@ -680,11 +681,11 @@ function vReports(){
 }
 function repByType(kind,r,cm){
   const list=S.txns.filter(t=>inR(t,r)&&kindOf(t,cm)===kind).sort(byDate);
-  if(!list.length)return emptyMsg(`No ${kind==='loan'?'loan':kind} entries for ${esc(r.label)}.`,true,kind);
+  if(!list.length)return emptyMsg(`No ${kind==='income'?'cash available':kind} entries for ${esc(r.label)}.`,true,kind);
   const groups={};for(const t of list)(groups[t.cat]||(groups[t.cat]=[])).push(t);
   const order=[...S.cats.filter(c=>c.type===kind&&groups[c.id]).map(c=>c.id),...Object.keys(groups).filter(id=>!cm[id]||cm[id].type!==kind)];
   const sign=t=>kind==='loan'?(loanOf(t,cm).dir==='in'?1:-1):1;
-  const word=kind==='expense'?'Type of Expense':kind==='income'?'Type of Income':'Type of Loan';
+  const word=kind==='expense'?'Type of Expense':kind==='income'?'Type of Cash available':'Type of Loan';
   const grand=list.reduce((s,t)=>s+val(t)*sign(t),0);
   if(!S.rep.detail){
     const rows=order.map(id=>{const g=groups[id],a=g.reduce((s,t)=>s+val(t)*sign(t),0);
@@ -711,7 +712,7 @@ function repPL(r,cm){
   const sec=(k,title)=>{const ids=[...new Set(list.filter(t=>kindOf(t,cm)===k).map(t=>t.cat))].sort((a,b)=>String(cm[a]?.name||a).localeCompare(String(cm[b]?.name||b)));
     return `<tr class="grp"><td colspan="${cols.length+1}">${title}</td></tr>${ids.map(id=>`<tr><td class="ind">${esc(cm[id]?.name||catName(list.find(t=>t.cat===id),cm))}</td>${cols.map(c=>cell(sumFor(id,c))).join('')}</tr>`).join('')||`<tr><td class="ind muted" colspan="${cols.length+1}">None</td></tr>`}
       <tr class="sub"><td>Total ${title}</td>${cols.map(c=>`<td class="n">${money(kindSum(k,c))}</td>`).join('')}</tr>`};
-  return table(['',...cols.map(c=>c.label)],sec('income','Income')+sec('expense','Expenses')+`<tr class="tot"><td>NET INCOME</td>${cols.map(c=>{const v=kindSum('income',c)-kindSum('expense',c);return `<td class="n ${v<0?'neg':''}">${money(v)}</td>`}).join('')}</tr>`);
+  return table(['',...cols.map(c=>c.label)],sec('income','Cash available')+sec('expense','Expenses')+`<tr class="tot"><td>NET INCOME</td>${cols.map(c=>{const v=kindSum('income',c)-kindSum('expense',c);return `<td class="n ${v<0?'neg':''}">${money(v)}</td>`}).join('')}</tr>`);
 }
 
 /* ---------- Lists ---------- */
@@ -734,7 +735,7 @@ function vLists(){
   };
   return `${isAdmin()?'':'<p class="notice" style="margin:0">Only the head of household can change these lists and the rate.</p>'}
   <div class="two"><div class="stack">${sec('expense','Types of Expense','Each expense entry picks one of these. A type can be used as many times as needed.')}</div>
-  <div class="stack">${sec('income','Types of Income','Money coming into the household. It is deposited to Cash at Bank.')}${sec('loan','Types of Loan','Loans change Cash at Bank and the loan balances, never income or expense.')}
+  <div class="stack">${sec('income','Types of Cash available','Money coming into the household. It is deposited to Cash at Bank.')}${sec('loan','Types of Loan','Loans change Cash at Bank and the loan balances, never income or expense.')}
   <section class="card"><div class="card-h"><h2>Accounts</h2></div>${table(['Account','Type','Balance today'],Object.entries(ACCTS).map(([k,v])=>`<tr><td>${v}</td><td>${k==='bank'?'Bank':'Cash'}</td><td class="n">${money(balance(k,'9999-12-31'))}</td></tr>`).join(''))}<p class="hint">Set a starting amount with Opening balance on the Cash at Bank tab.</p></section>
   <section class="card"><div class="card-h"><h2>Currency</h2></div>
    <div class="row2 stackable" style="align-items:end">
@@ -753,10 +754,10 @@ function barChart(ser,hl,W=420){
   ser.forEach((s,i)=>{const cx=L+step*i+step/2, on=hl&&hl.y===s.y&&hl.m===s.m;
     if(on)g+=`<rect x="${cx-step/2+2}" y="${T}" width="${step-4}" height="${ih}" rx="4" fill="var(--sunk)"/>`;
     const hi=ih*s.inc/max, he=ih*s.exp/max;
-    g+=`<rect x="${cx-bw-1}" y="${T+ih-hi}" width="${bw}" height="${Math.max(hi,0)}" rx="2" fill="var(--inc)"><title>${MONTHS[s.m]} ${s.y} income: ${money(s.inc)}</title></rect>`;
+    g+=`<rect x="${cx-bw-1}" y="${T+ih-hi}" width="${bw}" height="${Math.max(hi,0)}" rx="2" fill="var(--inc)"><title>${MONTHS[s.m]} ${s.y} cash available: ${money(s.inc)}</title></rect>`;
     g+=`<rect x="${cx+1}" y="${T+ih-he}" width="${bw}" height="${Math.max(he,0)}" rx="2" fill="var(--exp)"><title>${MONTHS[s.m]} ${s.y} expenses: ${money(s.exp)}</title></rect>`;
     g+=`<text x="${cx}" y="${H-8}" text-anchor="middle"${on?' style="fill:var(--ink);font-weight:700"':''}>${s.label}</text>`});
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Income and expenses by month">${g}</svg>`;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Cash available and expenses by month">${g}</svg>`;
 }
 function vAuth(){
   const setup=S.mode==='setup', card=(h,body)=>`<section class="card" style="max-width:440px;width:100%;margin:24px auto 0">${h}${body}</section>`;
@@ -887,7 +888,7 @@ function renderForm(){
     return;
   }
   const cats=S.cats.filter(c=>c.type===F.type);
-  const word=F.type==='expense'?'Type of Expense':F.type==='income'?'Type of Income':'Type of Loan';
+  const word=F.type==='expense'?'Type of Expense':F.type==='income'?'Type of Cash available':'Type of Loan';
   const partyLabel=F.type==='expense'?'Payee':F.type==='income'?'Received from':'Lender / borrower name';
   const acctLabel=F.type==='expense'?'Paid from':F.type==='income'?'Deposit to':'Account';
   const out=F.type==='expense'||(F.type==='loan'&&F.lines.some(l=>cm[l.cat]?.dir==='out'));
@@ -932,7 +933,7 @@ $('entry-form').addEventListener('submit',async e=>{
   }else{
     const lines=F.lines.filter((l,i)=>i===0||l.cat||l.amount||l.note);
     for(const [i,l] of lines.entries()){
-      if(!l.cat||!cm[l.cat])return err(`Line ${i+1}: choose a ${F.type==='expense'?'type of expense':F.type==='income'?'type of income':'type of loan'}.`);
+      if(!l.cat||!cm[l.cat])return err(`Line ${i+1}: choose a ${F.type==='expense'?'type of expense':F.type==='income'?'type of cash available':'type of loan'}.`);
       if(!(parseAmt(l.amount)>0))return err(`Line ${i+1}: enter an amount greater than zero.`);
     }
     if(F.type==='loan'&&!F.party.trim())return err('Enter the name of the person or bank for this loan.');
