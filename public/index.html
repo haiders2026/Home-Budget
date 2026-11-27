@@ -215,8 +215,8 @@ svg.chart text{fill:var(--muted);font-size:11.5px;font-family:var(--f)}
 <nav class="nav" id="nav" aria-label="Sections"><div class="nav-in" role="tablist">
   <button type="button" role="tab" data-view="dashboard" aria-selected="true">Dashboard</button>
   <button type="button" role="tab" data-view="bank" aria-selected="false">Cash at Bank</button>
-  <button type="button" role="tab" data-view="income" aria-selected="false">Income</button>
-  <button type="button" role="tab" data-view="expense" aria-selected="false">Cash available</button>
+  <button type="button" role="tab" data-view="income" aria-selected="false">Cash available</button>
+  <button type="button" role="tab" data-view="expense" aria-selected="false">Expense</button>
   <button type="button" role="tab" data-view="loans" aria-selected="false">Loans</button>
   <button type="button" role="tab" data-view="journal" aria-selected="false">Journal</button>
   <button type="button" role="tab" data-view="reports" aria-selected="false">Reports</button>
@@ -484,7 +484,7 @@ function snapToData(){
 }
 
 /* ---------- render ---------- */
-const VIEWS={dashboard:'Dashboard',bank:'Cash at Bank',income:'Income',expense:'Cash available',loans:'Loans',journal:'Journal',reports:'Reports',lists:'Lists',family:'Family'};
+const VIEWS={dashboard:'Dashboard',bank:'Cash at Bank',income:'Cash available',expense:'Expense',loans:'Loans',journal:'Journal',reports:'Reports',lists:'Lists',family:'Family'};
 let pending=false;
 function render(){
   const a=document.activeElement, main=$('main');
