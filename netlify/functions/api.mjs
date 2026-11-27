@@ -1,4 +1,4 @@
-// Storage and sign-in for the Home Budget Planner, kept in Netlify Blobs.
+// Storage and sign-in for the Home Budget Ledger, kept in Netlify Blobs.
 // Records: "data" (entries, categories, rate), "users" (family accounts), "secret" (session signing key).
 // BUDGET_PASSCODE is only needed once, to create the first (admin) account.
 import { getStore } from "@netlify/blobs";
@@ -27,9 +27,14 @@ const validUsername = (s) => /^[a-z0-9._-]{2,30}$/.test(s);
 const validPassword = (s) => typeof s === "string" && s.length >= 6 && s.length <= 200;
 const publicUser = (u) => ({ id: u.id, name: u.name, username: u.username, role: u.role, active: u.active !== false, resetRequested: u.resetRequested || null });
 
+// Entries are income, expense or loan lines (cat = the type's id), or bank entries:
+// type "opening" (opening balance of acct) and type "transfer" (from one account to the other).
+const ACCOUNTS = ["bank", "cash"];
 const isTxn = (b) =>
-  b && typeof b === "object" && /^\d{4}-\d{2}-\d{2}$/.test(b.date) && typeof b.cat === "string" &&
-  Number.isFinite(b.amount) && b.amount > 0 && (b.cur === "INR" || b.cur === "USD");
+  b && typeof b === "object" && /^\d{4}-\d{2}-\d{2}$/.test(b.date) && typeof b.cat === "string" && b.cat.length <= 80 &&
+  Number.isFinite(b.amount) && b.amount > 0 && (b.cur === "INR" || b.cur === "USD") &&
+  (b.acct === undefined || ACCOUNTS.includes(b.acct)) &&
+  (b.type !== "transfer" || (ACCOUNTS.includes(b.from) && ACCOUNTS.includes(b.to) && b.from !== b.to));
 
 async function secret(store) {
   let s = await store.get("secret");
@@ -123,21 +128,29 @@ export default async (req) => {
 
   if (a === "data") return everything();
 
-  if (a === "putTxn" || a === "delTxn") {
+  // Save one entry (putTxn) or several at once (putTxns, used when one bill has several lines), or delete one.
+  if (a === "putTxn" || a === "putTxns" || a === "delTxn") {
     const data = await loadData(); data.txns ||= [];
-    const i = data.txns.findIndex((t) => t.id === body.id);
-    const old = i >= 0 ? data.txns[i] : null;
-    // Family members change only their own entries; the head of household (role "admin") can change any.
-    if (old && !isAdmin && !ownsEntry(old)) return fail("You can only change entries you added.", 403);
-    if (a === "delTxn") {
-      if (i >= 0) data.txns.splice(i, 1);
-    } else {
-      if (typeof body.id !== "string" || body.id.length > 64 || !isTxn(body.body)) return fail("That entry is incomplete.");
-      const { by, byId, editedBy, editedById, editedAt, ...fields } = body.body;
-      const entry = old
-        ? { ...fields, id: body.id, by: old.by, byId: old.byId, created: old.created, editedBy: me.name, editedById: me.id, editedAt: Date.now() }
-        : { ...fields, id: body.id, by: me.name, byId: me.id, created: Date.now() };
-      if (i >= 0) data.txns[i] = entry; else data.txns.push(entry);
+    const items = a === "putTxns" ? body.items : [{ id: body.id, body: body.body }];
+    if (a !== "delTxn" && (!Array.isArray(items) || !items.length || items.length > 50)) return fail("That entry is incomplete.");
+    for (const it of a === "delTxn" ? [{ id: body.id }] : items) {
+      const i = data.txns.findIndex((t) => t.id === it.id);
+      const old = i >= 0 ? data.txns[i] : null;
+      // Family members change only their own entries; the head of household (role "admin") can change any.
+      if (old && !isAdmin && !ownsEntry(old)) return fail("You can only change entries you added.", 403);
+      if (a === "delTxn") { if (i >= 0) data.txns.splice(i, 1); continue; }
+      if (typeof it.id !== "string" || !it.id || it.id.length > 64 || !isTxn(it.body)) return fail("That entry is incomplete.");
+    }
+    if (a !== "delTxn") {
+      for (const it of items) {
+        const i = data.txns.findIndex((t) => t.id === it.id);
+        const old = i >= 0 ? data.txns[i] : null;
+        const { by, byId, editedBy, editedById, editedAt, ...fields } = it.body;
+        const entry = old
+          ? { ...fields, id: it.id, by: old.by, byId: old.byId, created: old.created, editedBy: me.name, editedById: me.id, editedAt: Date.now() }
+          : { ...fields, id: it.id, by: me.name, byId: me.id, created: Number.isFinite(fields.created) ? fields.created : Date.now() };
+        if (i >= 0) data.txns[i] = entry; else data.txns.push(entry);
+      }
     }
     await store.setJSON("data", data);
     return everything(data);

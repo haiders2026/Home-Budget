@@ -1,4 +1,4 @@
-# Home Budget Planner on Netlify
+# Home Budget Ledger on Netlify
 
 This folder is a ready-to-deploy Netlify site.
 
@@ -7,6 +7,18 @@ This folder is a ready-to-deploy Netlify site.
 - Each family member gets their own username and password. Every entry records who added it.
 
 The first time the app opens, it adds your two entries from the spreadsheet automatically.
+
+## How the ledger works
+
+The app keeps the household's books like an accounting register.
+
+- **Cash at Bank** is the main account. Every amount coming in (income, loans taken, loan repayments received) is deposited to it. Expenses, loans given and loan repayments are deducted from it when you pick **Cash at Bank** as the account on the entry. Pick **Cash in Hand** instead for money that didn't go through the bank. Use **Opening balance** to set the starting amount and **Transfer** to move money between the two accounts.
+- The three categories are **Income**, **Expense** and **Loans**, each with its own tab and its own list of types (**Lists** tab): Types of Income, Types of Expense (with an optional monthly budget) and Types of Loan.
+- A type can be used as many times as needed. One expense entry can have several lines (for example Grocery and Milk on the same bill); each line is saved as its own entry.
+- Every entry has an **Edit** button wherever it appears (register, Income, Expense, Loans, Journal, Reports, Dashboard).
+- **Journal** shows every transaction as debit and credit lines.
+- **Reports** has Expenses by Type of Expense, Income by Type of Income, Loans by Type of Loan and Profit and Loss, for any date range, in Summary or Detail. Detail lists every time a type was used, with a total for each type. Reports can be printed or saved as PDF, and exported to CSV.
+- Entries made before the ledger existed are treated as going through Cash at Bank. Edit any of them to change the account.
 
 ## Option A: Deploy from GitHub (recommended)
 
@@ -52,5 +64,5 @@ Netlify Drop (drag and drop) won't work for this site. Drop publishes only stati
 
 ## Good to know
 
-- **Export CSV** on the Transactions tab downloads a backup you can open in Excel or Google Sheets.
+- **Export CSV** on the Journal tab downloads a backup you can open in Excel or Google Sheets.
 - The Claude version and the Netlify version keep separate data. Pick one to use day to day.
